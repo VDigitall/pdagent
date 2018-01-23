@@ -33,6 +33,7 @@
 
 
 # standard python modules
+import logging.config
 import logging.handlers
 import os
 import platform
@@ -94,6 +95,7 @@ log_dir = conf_dirs['log_dir']
 data_dir = conf_dirs['data_dir']
 outqueue_dir = conf_dirs["outqueue_dir"]
 db_dir = conf_dirs["db_dir"]
+config_file = agent_config.get_config_file()
 
 agent_id_file = agent_config.get_agent_id_file()
 
@@ -241,7 +243,7 @@ def stop_task_threads():
 def run():
     global main_logger, agent_id, system_stats
     pid = os.getpid()
-    init_logging(log_dir)
+    init_logging(log_dir, config_file)
     main_logger = logging.getLogger('main')
     main_logger.info("*** pdagentd starting! pid=%s" % pid)
 
@@ -369,42 +371,46 @@ def get_or_make_agent_id():
         raise SystemExit
 
 
-def init_logging(log_dir):
-    # log format
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-7s %(threadName)-20s %(name)-20s %(message)s"
-        )
+def init_logging(log_dir, config_file):
 
-    def make_rotating_handler(fname, maxBytes, backupCount, level):
-        f = os.path.join(log_dir, fname)
-        handler = logging.handlers.RotatingFileHandler(
-            f, maxBytes=maxBytes, backupCount=backupCount
+    if not config_file:
+        # log format
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(threadName)-20s %(name)-20s %(message)s"
             )
-        handler.setFormatter(formatter)
-        handler.setLevel(level)
-        return handler
 
-    # info logging file
-    # retention goal here is 1k to 10K events
-    # tests showed about 500 bytes/event
-    # using 10Ke * 500B/e = 5MB
-    # other non-debug logging will take away from this but it should be
-    # minimal unless there are issues such as network errors, throttling etc
-    info_handler = make_rotating_handler(
-        'pdagentd.log', 1048576, 5, logging.INFO
-        )
-    # debug logging file
-    # retention goal here is 1 to 2 weeks
-    # tests which showed about 15M over ~8 days
-    # using 5MB *4 = 20 MB
-    debug_handler = make_rotating_handler(
-        'pdagentd-debug.log', 5242880, 4, logging.DEBUG
-        )
-    # put it all together
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-    root_logger.addHandler(info_handler)
-    root_logger.addHandler(debug_handler)
+        def make_rotating_handler(fname, maxBytes, backupCount, level):
+            f = os.path.join(log_dir, fname)
+            handler = logging.handlers.RotatingFileHandler(
+                f, maxBytes=maxBytes, backupCount=backupCount
+                )
+            handler.setFormatter(formatter)
+            handler.setLevel(level)
+            return handler
+
+        # info logging file
+        # retention goal here is 1k to 10K events
+        # tests showed about 500 bytes/event
+        # using 10Ke * 500B/e = 5MB
+        # other non-debug logging will take away from this but it should be
+        # minimal unless there are issues such as network errors, throttling etc
+        info_handler = make_rotating_handler(
+            'pdagentd.log', 1048576, 5, logging.INFO
+            )
+        # debug logging file
+        # retention goal here is 1 to 2 weeks
+        # tests which showed about 15M over ~8 days
+        # using 5MB *4 = 20 MB
+        debug_handler = make_rotating_handler(
+            'pdagentd-debug.log', 5242880, 4, logging.DEBUG
+            )
+        # put it all together
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(info_handler)
+        root_logger.addHandler(debug_handler)
+    else:
+        root_logger = logging.getLogger()
 
 
 # ---- Daemonize and run agent
@@ -412,4 +418,6 @@ if not (len(sys.argv) > 1 and sys.argv[1] == '-f'):
     daemonize(pidfile, umask=_DEFAULT_UMASK)
 else:
     os.umask(_DEFAULT_UMASK)
+if config_file:
+    logging.config.fileConfig(config_file)
 run()

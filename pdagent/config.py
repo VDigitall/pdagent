@@ -45,10 +45,12 @@ _ENQUEUE_DEFAULT_UMASK = 0022  # default umask for world-readability of files.
 
 class AgentConfig:
 
-    def __init__(self, dev_layout, default_dirs, main_config):
+    def __init__(self, dev_layout, default_dirs, main_config,
+                 loggers_conf_file):
         self.dev_layout = dev_layout
         self.default_dirs = default_dirs
         self.main_config = main_config
+        self.loggers_conf_file = loggers_conf_file
 
     def is_dev_layout(self):
         return self.dev_layout
@@ -58,6 +60,9 @@ class AgentConfig:
 
     def get_main_config(self):
         return self.main_config
+
+    def get_config_file(self):
+        return self.loggers_conf_file
 
     def get_outqueue_dir(self):
         return os.path.join(self.default_dirs["data_dir"], "outqueue")
@@ -170,6 +175,9 @@ def load_agent_config():
             print 'Agent will now quit'
             sys.exit(1)
 
-    _agent_config = AgentConfig(dev_layout, default_dirs, cfg)
+    loggers_conf_file_path = conf_file if config.has_section('loggers') else ""
+    _agent_config = AgentConfig(
+        dev_layout, default_dirs, cfg, loggers_conf_file_path
+    )
 
     return _agent_config
